@@ -1,37 +1,46 @@
 <html>
   <head>
 	<script type="text/javascript">
+	  var terrain;
+	  var canvas;
+	  var height;
+	  var width;
+	  var p1X;
+	  var p2Y;
 	  function init() {
 		canvas = document.getElementById("canvas");
+		height = canvas.height;
+		width = canvas.width;
+		terrain = generateTerrain(canvas.width, canvas.height);
+		render();
+	  }
+	  function render() {
 		context = canvas.getContext("2d");
 		context.fillStyle = "rgba(0,0,0,1.0)";
 		context.fillRect(0,0,canvas.width,canvas.height);
-		context.strokeStyle = "rgba(100,100,100,1.0)";
-		context.moveTo(0,canvas.height/2);
-		//var wave1 = makeWave(canvas.width, 0, canvas.width, canvas.height/2)
-		//var wave2 = makeWave(canvas.width, 0, canvas.width/4, canvas.height/4)
-		//var wave = new Array(canvas.width)
-		//addWave(wave1,wave2, wave)
-		//normaliseWave(wave, 700, 50)
-		wave = generateTerrain(canvas.width, canvas.height)
-		for (x = 0; x < wave.length; x++) {
-		  context.lineTo(x, canvas.height - wave[x]);
+		context.fillStyle = "rgba(100,100,100,1.0)";
+		context.beginPath();
+		context.moveTo(0,height);
+		for (x = 0; x < terrain.length; x++) {
+		  console.log(terrain[x])
+		  context.lineTo(x, height - terrain[x]);
 		}
-		context.stroke();
-		console.log("Reached");
+		context.lineTo(width,height);
+		context.closePath();
+		context.fill();
 	  }
 	  function r(lim) {
 		return Math.floor(Math.random()*lim)+1
 	  }
 	  function generateTerrain(width, height) {
-		var wave1 = makeWave(width, width/r(10), width/r(2), height/r(5))
+		var wave = makeWave(width, width/r(10), width/r(2), height/r(5))
 		for (var i = 0; i < 10; i++) {
 		  var divisor = r(i)
-		  var wave = makeWave(width, width/r(10), width/(divisor*2.5), height/(divisor*5))
-		  addWave(wave1, wave);
+		  var oWave = makeWave(width, width/r(10), width/(divisor*2.5), height/(divisor*5))
+		  addWave(wave, oWave);
 		}
-		normaliseWave(wave1, 700, 50)
-		return wave1
+		normaliseWave(wave, 700, 50)
+		return wave
 	  }
 	  function makeWave(len, offset, waveWidth, waveHeight) {
 		var wave = new Array(len)
@@ -65,11 +74,38 @@
 		  wave[i] = (inMagnitude * outMagnitude) + lowerLim
 		}
 	  }
+	  function explode(e) {
+		var radius = 25;
+		var x = e.clientX;
+		var y = e.clientY;
+		var mult = (Math.PI/2)/radius;
+		for (i = 0; i < radius; i++) {
+		  var sub = radius*Math.cos(i*mult)
+		  if (x+i < width) {
+			console.log("Before", terrain[x+i], sub)
+			terrain[x+i] = terrain[x+i] - sub
+			console.log("After", terrain[x+i])
+		  }
+		  if (x-i >= 0) {
+			terrain[x-i] -= sub
+		  }
+		}
+		render();
+		/*
+		context.beginPath();
+		context.arc(x, y, 50, 0, 2*Math.PI, true);
+		context.fillStyle = "rgba(255,30,40,1.0)";
+		context.fill()
+		context.lineWidth = 5
+		context.strokeStyle = "rgba(255, 255, 255, 0.8)";
+		context.stroke();
+		*/
+	  }
 	</script>
   </head>
   <body onload="init()">
 	<div>
-	  <canvas id="canvas" width="1800" height="800" border="2"></canvas>
+	  <canvas id="canvas" width="1800" height="800" border="2" onClick="explode(event)"></canvas>
 	</div>
   </body>
 </html>
