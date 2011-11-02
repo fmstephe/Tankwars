@@ -5,13 +5,29 @@
 	  var canvas;
 	  var height;
 	  var width;
-	  var p1X;
-	  var p2Y;
+	  var player1;
+	  var player2;
+	  
+	  // Player Object
+	  function player(x, name) {
+		this.x = x;
+		this.y = 0; // This gets set automatically by the physics
+		this.name = name;
+		this.arc = 0;
+		this.power = 0;
+	  }
+	  function setPlayer(player) {
+		player.y = terrain[player.x]
+	  }	
 	  function init() {
 		canvas = document.getElementById("canvas");
 		height = canvas.height;
 		width = canvas.width;
 		terrain = generateTerrain(canvas.width, canvas.height);
+		player1 = new player(r(width/3),"Player1");
+		setPlayer(player1);
+		player2 = new player(width-r(width/3),"Player2");
+		setPlayer(player2);
 		render();
 	  }
 	  function render() {
@@ -19,15 +35,34 @@
 		context.fillStyle = "rgba(0,0,0,1.0)";
 		context.fillRect(0,0,canvas.width,canvas.height);
 		context.fillStyle = "rgba(100,100,100,1.0)";
+		context.lineWidth = 5
+		context.strokeStyle = "rgba(200, 200, 200, 0.3)";
+		context.beginPath();
+		context.moveTo(0, height);
+		for (x = 0; x < terrain.length; x++) {
+		  //console.log(terrain[x])
+		  context.lineTo(x, height - terrain[x]);
+		}
+		context.lineTo(width,height);
+		context.closePath();
+		context.stroke();
 		context.beginPath();
 		context.moveTo(0,height);
 		for (x = 0; x < terrain.length; x++) {
-		  console.log(terrain[x])
+		  //console.log(terrain[x])
 		  context.lineTo(x, height - terrain[x]);
 		}
 		context.lineTo(width,height);
 		context.closePath();
 		context.fill();
+		context.beginPath();
+		context.fillStyle = "rgba(255,30,40,1.0)";
+		context.arc(player1.x, height-player1.y, 10, 0, 2*Math.PI, true);
+		context.fill();
+		context.closePath();
+		context.arc(player2.x, height-player2.y, 10, 0, 2*Math.PI, true);
+		context.fill();
+		context.closePath();
 	  }
 	  function r(lim) {
 		return Math.floor(Math.random()*lim)+1
@@ -75,19 +110,20 @@
 		}
 	  }
 	  function explode(e) {
-		var radius = 25;
+		var radius = 100;
 		var x = e.clientX;
-		var y = e.clientY;
+		var y = height-e.clientY;
 		var mult = (Math.PI/2)/radius;
 		for (i = 0; i < radius; i++) {
-		  var sub = radius*Math.cos(i*mult)
-		  if (x+i < width) {
-			console.log("Before", terrain[x+i], sub)
-			terrain[x+i] = terrain[x+i] - sub
-			console.log("After", terrain[x+i])
+		  var sub = radius*Math.cos(i*mult);
+		  var bottom = y-sub;
+		  if (x+i < width && bottom < terrain[x+i]) {
+			console.log(i, "plus")
+			terrain[x+i] -= Math.min(sub, terrain[x+i]-bottom)
 		  }
-		  if (x-i >= 0) {
-			terrain[x-i] -= sub
+		  if (x-i >= 0 && i != 0 && bottom < terrain[x-i]) {
+			console.log(i, "minus")
+			terrain[x-i] -= Math.min(sub, terrain[x-i]-bottom)
 		  }
 		}
 		render();
@@ -105,7 +141,7 @@
   </head>
   <body onload="init()">
 	<div>
-	  <canvas id="canvas" width="1800" height="800" border="2" onClick="explode(event)"></canvas>
+	  <canvas id="canvas" width="2400" height="800" border="2" onClick="explode(event)"></canvas>
 	</div>
   </body>
 </html>
