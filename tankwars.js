@@ -1,12 +1,16 @@
 // Global Constants
 var maxPower = 100;
 var minPower = 0;
+var initPower = 50;
+var powerInc = 0.2;
 var turretLength = 20;
-var rotationSpeed = Math.PI/60;
-var frameRate = 100;
-var gravity = 10;
-var expLife = 1000;
-var expRadius = 100;
+var rotationSpeed = Math.PI/90;
+var frameRate = 16;
+var gravity = 1;
+var expLife = 1*frameRate;
+var expRadius = 50;
+var expRadius2 = expRadius*expRadius;
+var ctxt;
 
 document.onkeydown = captureKeydown
 document.onkeyup = captureKeyup
@@ -27,7 +31,7 @@ function Player(x, name, keyBindings) {
 	this.y = 0; // This gets set automatically by the physics
 	this.name = name;
 	this.arc = 0;
-	this.power = 0;
+	this.power = initPower;
 	this.keyBindings = keyBindings;
 	this.missile = null;
 }
@@ -46,10 +50,12 @@ function KeyBindings(upKey, downKey, leftKey, rightKey, firingKey) {
 }
 
 function Missile(player) {
-	pushX = (player.power*Math.sin(player.arc))/10;
-	pushY = (player.power*Math.cos(player.arc))/10;
-	this.x = player.x;
-	this.y = player.y;
+	pushX = (player.power*Math.sin(player.arc));
+	pushY = (player.power*Math.cos(player.arc));
+	this.x = player.x+pushX;
+	this.y = player.y+pushY;
+	this.prevX = player.x;
+	this.prevY = player.y;
 	this.pushX = pushX;
 	this.pushY = pushY;
 }
@@ -90,7 +96,7 @@ function cleanExplosions() {
 	exp = firstExp;
 	while (exp != null) {
 		exp.life--;
-		if (exp.life > 0) {
+		if (exp.life <= 0) {
 			removeExplosion(exp);
 		}
 		exp = exp.next;
@@ -101,6 +107,7 @@ function init() {
 	firstExp = null;
 	lastExp = null;
 	canvas = document.getElementById("canvas");
+	ctxt = canvas.getContext("2d")
 	height = canvas.height;
 	width = canvas.width;
 	terrain = generateTerrain(canvas.width, canvas.height);
@@ -112,6 +119,7 @@ function init() {
 }
 
 function loop() {
+	cleanExplosions();
 	managePlayer(player1);
 	managePlayer(player2);
 	render();
@@ -131,10 +139,10 @@ function playerUpdate(player) {
 		player.arc += rotationSpeed;
 	}
 	if (player.keyBindings.up) {
-		player.power += 10;
+		player.power += powerInc;
 	}
 	if (player.keyBindings.down) {
-		player.power -= 10;
+		player.power -= powerInc;
 	}
 	player.power = Math.max(player.power,minPower);
 	player.power = Math.min(player.power,maxPower);
@@ -145,14 +153,17 @@ function playerMissile(player) {
 		player.missile = new Missile(player);
 	}
 	if (player.missile != null) {
-		oldX = player.missile.x;
-		oldY = player.missile.y;
+		player.missile.prevX = player.missile.x;
+		player.missile.prevY = player.missile.y;
 		player.missile.x += player.missile.pushX;
-		player.missile.y += player.missile.pushY - gravity;
-		for (var i = Math.floor(oldX); i <= Math.floor(player.missile.x); i++) {
+		player.missile.pushY -= gravity;
+		player.missile.y += player.missile.pushY;
+		low = Math.min(Math.floor(player.missile.prevX), Math.floor(player.missile.x));
+		high = Math.max(Math.floor(player.missile.prevY), Math.floor(player.missile.x));
+		for (var i = low; i <= high; i++) {
 			if (terrain[i] >= player.missile.y) {
+				exp = new Explosion(player.missile);
 				player.missile = null;
-				exp = new Explosion(player);
 				addExplosion(exp);
 				explode(exp);
 				return;
@@ -167,81 +178,100 @@ function playerMissile(player) {
 }
 
 function render() {
-	context = canvas.getContext("2d");
-	renderTerrain(context);
-	renderPlayer(context, player1);
-	renderPlayer(context, player2);
-	renderExplosions(context);
+	renderTerrain();
+	renderPlayer(player1);
+	renderPlayer(player2);
+	renderExplosions();
 }
 
-function renderTerrain(context) {
-	context.fillStyle = "rgba(0,0,0,1.0)";
-	context.fillRect(0,0,canvas.width,canvas.height);
-	context.fillStyle = "rgba(100,100,100,1.0)";
-	context.lineWidth = 5
-	context.strokeStyle = "rgba(200, 200, 200, 0.3)";
-	context.beginPath();
-	context.moveTo(0, height);
+function renderTerrain() {
+	ctxt.fillStyle = "rgba(0,0,0,1.0)";
+	ctxt.fillRect(0,0,canvas.width,canvas.height);
+	ctxt.fillStyle = "rgba(100,100,100,1.0)";
+	ctxt.lineWidth = 5
+	ctxt.strokeStyle = "rgba(200, 200, 200, 0.3)";
+	ctxt.beginPath();
+	ctxt.moveTo(0, height);
 	for (x = 0; x < terrain.length; x++) {
-		context.lineTo(x, height - terrain[x]);
+		ctxt.lineTo(x, height - terrain[x]);
 	}
-	context.lineTo(width,height);
-	context.closePath();
-	context.stroke();
-	context.beginPath();
-	context.moveTo(0,height);
+	ctxt.lineTo(width,height);
+	ctxt.closePath();
+	ctxt.stroke();
+	ctxt.beginPath();
+	ctxt.moveTo(0,height);
 	for (x = 0; x < terrain.length; x++) {
-		context.lineTo(x, height - terrain[x]);
+		ctxt.lineTo(x, height - terrain[x]);
 	}
-	context.lineTo(width,height);
-	context.closePath();
-	context.fill();
+	ctxt.lineTo(width,height);
+	ctxt.closePath();
+	ctxt.fill();
 }
 
-function renderPlayer(context, player) {
-	context.fillStyle = "rgba(255,30,40,1.0)";
-	context.beginPath();
-	context.arc(player.x, height-player.y, 10, 0, 2*Math.PI, true);
-	context.closePath();
-	context.fill();
+function renderPlayer(player) {
+	ctxt.fillStyle = "rgba(255,30,40,1.0)";
+	ctxt.beginPath();
+	ctxt.arc(player.x, height-player.y, 10, 0, 2*Math.PI, true);
+	ctxt.closePath();
+	ctxt.fill();
 	turretX = player.x+turretLength*Math.sin(player.arc);
 	turretY = height-(player.y+(turretLength*Math.cos(player.arc)));
-	context.strokeStyle = "rgba(255,255,255,1.0)";
-	context.lineWidth = 5;
-	context.beginPath();
-	context.moveTo(player.x, height-player.y);
-	context.lineTo(turretX,turretY);
-	context.closePath();
-	context.stroke();
-	renderMissile(context, player);
+	ctxt.strokeStyle = "rgba(255,255,255,1.0)";
+	ctxt.lineWidth = 5;
+	ctxt.beginPath();
+	ctxt.moveTo(player.x, height-player.y);
+	ctxt.lineTo(turretX,turretY);
+	ctxt.closePath();
+	ctxt.stroke();
+	renderMissile(ctxt, player.missile);
 }
 
-function renderMissile(context, player) {
-	if (player.missile != null) {
-		context.fillStyle = "rgba(255,255,255,1.0)";
-		context.beginPath();
-		context.arc(player.missile.x, height-player.missile.y, 5, 0, 2*Math.PI, true);
-		context.closePath();
-		context.fill();
-	}
-	if (player.explosion != null) {
-		context.fillStyle = "rgba(255,0,0,1.0)";
-		context.beginPath();
-		context.arc(player.explosion.x, height-player.explosion.y, 50, 0, 2*Math.PI, true);
-		context.closePath();
-		context.fill();
+function renderMissile(missile) {
+	if (missile != null) {
+		var prevX = missile.prevX;
+		var prevY = height - missile.prevY;
+		var x = missile.x;
+		var y = height - missile.y;
+		var mGrad = ctxt.createLinearGradient(prevX,prevY,x,y);
+		mGrad.addColorStop(0,"rgba(255,255,255,0.1)");
+		mGrad.addColorStop(1,"rgba(255,255,255,1)");
+		ctxt.strokeStyle = mGrad;
+		ctxt.lineWidth = 5;
+		ctxt.beginPath();
+		ctxt.moveTo(prevX,prevY);
+		ctxt.lineTo(x,y);
+		ctxt.closePath();
+		ctxt.stroke();
 	}
 }
 
-function renderExplosions(context) {
+function renderExplosions() {
 	exp = firstExp;
 	while (exp != null) {
-		context.fillStyle = "rgba(255,30,40,1.0)";
-		context.beginPath();
-		context.arc(exp.x, height-exp.y, 50, 0, 2*Math.PI, true);
-		context.closePath();
-		context.fill();
+		renderExplosion(ctxt, exp);
 		exp = exp.next;
+		/*
+		ctxt.fillStyle = "rgba(255,30,40,1.0)";
+		ctxt.beginPath();
+		ctxt.arc(exp.x, height-exp.y, expRadius2, 0, 2*Math.PI, true);
+		ctxt.closePath();
+		ctxt.fill();
+		exp = exp.next;
+		*/
+	}
+}
+
+function renderExplosion(exp) {
+	var x = Math.floor(exp.x);
+	var y = Math.floor(exp.y);
+	ctxt.strokeStyle = "rgba(255,255,255,1.0)";
+	for (i = 0; i < expRadius2; i++) {
+		var sub = Math.sqrt(expRadius2-(i*i));
+		ctxt.beginPath();
+		ctxt.moveTo(x+i,height - y+sub);
+		ctxt.lineTo(x+i,height - y-sub);
+		ctxt.closePath();
+		ctxt.stroke();
 	}
 }
 
@@ -250,27 +280,33 @@ function r(lim) {
 }
 
 function explode(explosion) {
-	var x = explosion.x;
-	var y = height-explosion.y;
-	var mult = (Math.PI/2)/expRadius;
-	for (i = 0; i < expRadius; i++) {
-		var sub = expRadius*Math.cos(i*mult);
+	var x = Math.floor(explosion.x);
+	var y = Math.floor(explosion.y);
+	console.log(x);
+	console.log(y);
+	//var mult = (Math.PI/2)/expRadius2;
+	for (i = 0; i < expRadius2; i++) {
+		console.log("foo");
+		//var sub = expRadius2*Math.cos(i*mult);
+		var sub = Math.sqrt(expRadius2-(i*i));
 		var bottom = y-sub;
 		if (x+i < width && bottom < terrain[x+i]) {
-			terrain[x+i] -= Math.min(sub, terrain[x+i]-bottom)
+			console.log("plus");
+			terrain[x+i] -= Math.min(sub*2, terrain[x+i]-bottom)
 		}
 		if (x-i >= 0 && i != 0 && bottom < terrain[x-i]) {
-			terrain[x-i] -= Math.min(sub, terrain[x-i]-bottom)
+			console.log("minus");
+			terrain[x-i] -= Math.min(sub*2, terrain[x-i]-bottom)
 		}
 	}
 /*
-		context.beginPath();
-		context.arc(x, y, 50, 0, 2*Math.PI, true);
-		context.fillStyle = "rgba(255,30,40,1.0)";
-		context.fill()
-		context.lineWidth = 5
-		context.strokeStyle = "rgba(255, 255, 255, 0.8)";
-		context.stroke();
+		ctxt.beginPath();
+		ctxt.arc(x, y, 50, 0, 2*Math.PI, true);
+		ctxt.fillStyle = "rgba(255,30,40,1.0)";
+		ctxt.fill()
+		ctxt.lineWidth = 5
+		ctxt.strokeStyle = "rgba(255, 255, 255, 0.8)";
+		ctxt.stroke();
 */
 }
 

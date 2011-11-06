@@ -9,6 +9,14 @@ function generateTerrain(width, height) {
 	return wave
 }
 
+function flatTerrain(width, height) {
+	var terrain = new Array(width);
+	for (var i = 0; i < width; i++) {
+		terrain[i] = height/2;
+	}
+	return terrain;
+}
+
 
 function makeWave(len, offset, waveWidth, waveHeight) {
 	var wave = new Array(len)
