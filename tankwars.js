@@ -1,13 +1,14 @@
 // Global Constants
-var maxPower = 100;
+var maxPower = 170;
 var minPower = 0;
 var initPower = 50;
-var powerInc = 0.2;
+var powerInc = 0.4;
+var gravity = 4;
 var turretLength = 20;
-var rotationSpeed = Math.PI/90;
-var frameRate = 16;
-var gravity = 1;
-var expLife = 1*frameRate;
+var rotationSpeed = Math.PI/50;
+var frameRate = 30;
+var framePause = Math.floor(1000/frameRate);
+var expLife = 0.1*frameRate;
 var expRadius = 50;
 var expRadius2 = expRadius*expRadius;
 var ctxt;
@@ -22,10 +23,15 @@ var height;
 var width;
 var player1;
 var player2;
-var firstExp;
-var lastExp;
+// Player linked list
+var firstPlayer;
+var lastPlayer;
+// Explosion linked list
+var expList;
+var lastCycle;
+var thisCycle;
+var devMode;
 
-// Player Object
 function Player(x, name, keyBindings) {
 	this.x = x;
 	this.y = 0; // This gets set automatically by the physics
@@ -50,14 +56,12 @@ function KeyBindings(upKey, downKey, leftKey, rightKey, firingKey) {
 }
 
 function Missile(player) {
-	pushX = (player.power*Math.sin(player.arc));
-	pushY = (player.power*Math.cos(player.arc));
-	this.x = player.x+pushX;
-	this.y = player.y+pushY;
+	this.pushX = (player.power*Math.sin(player.arc));
+	this.pushY = (player.power*Math.cos(player.arc));
+	this.x = player.x;
+	this.y = player.y;
 	this.prevX = player.x;
 	this.prevY = player.y;
-	this.pushX = pushX;
-	this.pushY = pushY;
 }
 
 function Explosion(missile) {
@@ -68,44 +72,20 @@ function Explosion(missile) {
 	this.prev = null;
 }
 
-function addExplosion(exp) {
-	if (firstExp == null) {
-		firstExp = exp;
-		lastExp = exp;
-	} else {
-		exp.prev = lastExp;
-		lastExp = exp;
-	}
-}
-
-function removeExplosion(exp) {
-	if (exp.prev != null && exp.next != null) {
-		exp.prev.next = exp.next;
-		exp.next.prev = exp.prev;
-		return;
-	}
-	if (exp.next == null) {
-		lastExp = exp.prev;
-	}
-	if (exp.prev == null) {
-		firstExp = exp.next;
-	}
-}
-
 function cleanExplosions() {
-	exp = firstExp;
-	while (exp != null) {
-		exp.life--;
-		if (exp.life <= 0) {
-			removeExplosion(exp);
-		}
-		exp = exp.next;
-	}
+	filter(expList, cleanExplosion);
+}
+
+function cleanExplosion(exp) {
+	exp.life--;
+	return exp.life <= 0;
 }
 
 function init() {
-	firstExp = null;
-	lastExp = null;
+	devMode = false;
+	lastCycle = new Date().getTime();
+	thisCycle = new Date().getTime();
+	expList = new LinkedList();
 	canvas = document.getElementById("canvas");
 	ctxt = canvas.getContext("2d")
 	height = canvas.height;
@@ -115,13 +95,14 @@ function init() {
 	player1 = new Player(r(width/3),"Player1",kb1);
 	kb2 = new KeyBindings(73,75,74,76,72);
 	player2 = new Player(width-r(width/3),"Player2",kb2);
-	setInterval(loop, frameRate);
+	setInterval(loop, framePause);
 }
 
 function loop() {
 	cleanExplosions();
 	managePlayer(player1);
 	managePlayer(player2);
+	manageInfo();
 	render();
 }
 
@@ -158,16 +139,12 @@ function playerMissile(player) {
 		player.missile.x += player.missile.pushX;
 		player.missile.pushY -= gravity;
 		player.missile.y += player.missile.pushY;
-		low = Math.min(Math.floor(player.missile.prevX), Math.floor(player.missile.x));
-		high = Math.max(Math.floor(player.missile.prevY), Math.floor(player.missile.x));
-		for (var i = low; i <= high; i++) {
-			if (terrain[i] >= player.missile.y) {
-				exp = new Explosion(player.missile);
-				player.missile = null;
-				addExplosion(exp);
-				explode(exp);
-				return;
-			}
+		if (terrain[Math.floor(player.missile.x)] >= player.missile.y) {
+			exp = new Explosion(player.missile);
+			player.missile = null;
+			append(expList, exp);
+			explode(exp);
+			return;
 		}
 		if (player.missile.x > width || player.missile.x < 0) {
 			player.missile = null;
@@ -177,27 +154,23 @@ function playerMissile(player) {
 	}
 }
 
+function manageInfo() {
+	lastCycle = thisCycle;
+	thisCycle = new Date().getTime();
+}
+
 function render() {
 	renderTerrain();
 	renderPlayer(player1);
 	renderPlayer(player2);
 	renderExplosions();
+	renderInfo();
 }
 
 function renderTerrain() {
 	ctxt.fillStyle = "rgba(0,0,0,1.0)";
 	ctxt.fillRect(0,0,canvas.width,canvas.height);
 	ctxt.fillStyle = "rgba(100,100,100,1.0)";
-	ctxt.lineWidth = 5
-	ctxt.strokeStyle = "rgba(200, 200, 200, 0.3)";
-	ctxt.beginPath();
-	ctxt.moveTo(0, height);
-	for (x = 0; x < terrain.length; x++) {
-		ctxt.lineTo(x, height - terrain[x]);
-	}
-	ctxt.lineTo(width,height);
-	ctxt.closePath();
-	ctxt.stroke();
 	ctxt.beginPath();
 	ctxt.moveTo(0,height);
 	for (x = 0; x < terrain.length; x++) {
@@ -223,7 +196,7 @@ function renderPlayer(player) {
 	ctxt.lineTo(turretX,turretY);
 	ctxt.closePath();
 	ctxt.stroke();
-	renderMissile(ctxt, player.missile);
+	renderMissile(player.missile);
 }
 
 function renderMissile(missile) {
@@ -232,10 +205,10 @@ function renderMissile(missile) {
 		var prevY = height - missile.prevY;
 		var x = missile.x;
 		var y = height - missile.y;
-		var mGrad = ctxt.createLinearGradient(prevX,prevY,x,y);
-		mGrad.addColorStop(0,"rgba(255,255,255,0.1)");
-		mGrad.addColorStop(1,"rgba(255,255,255,1)");
-		ctxt.strokeStyle = mGrad;
+		ctxt.strokeStyle = ctxt.createLinearGradient(Math.floor(prevX),Math.floor(prevY),Math.floor(x),Math.floor(y));
+		//ctxt.strokeStyle = "rgba(255,255,255,1)"; //ctxt.createLinearGradient(0,0,width,height);
+		ctxt.strokeStyle.addColorStop(0,"rgba(255,255,255,0.1)");
+		ctxt.strokeStyle.addColorStop(1,"rgba(255,255,255,1)");
 		ctxt.lineWidth = 5;
 		ctxt.beginPath();
 		ctxt.moveTo(prevX,prevY);
@@ -246,32 +219,27 @@ function renderMissile(missile) {
 }
 
 function renderExplosions() {
-	exp = firstExp;
-	while (exp != null) {
-		renderExplosion(ctxt, exp);
-		exp = exp.next;
-		/*
-		ctxt.fillStyle = "rgba(255,30,40,1.0)";
-		ctxt.beginPath();
-		ctxt.arc(exp.x, height-exp.y, expRadius2, 0, 2*Math.PI, true);
-		ctxt.closePath();
-		ctxt.fill();
-		exp = exp.next;
-		*/
-	}
+	ctxt.fillStyle = "rgba(255,30,30,1.0)";
+	forEach(expList, renderExplosion);
 }
 
 function renderExplosion(exp) {
 	var x = Math.floor(exp.x);
 	var y = Math.floor(exp.y);
-	ctxt.strokeStyle = "rgba(255,255,255,1.0)";
-	for (i = 0; i < expRadius2; i++) {
-		var sub = Math.sqrt(expRadius2-(i*i));
-		ctxt.beginPath();
-		ctxt.moveTo(x+i,height - y+sub);
-		ctxt.lineTo(x+i,height - y-sub);
-		ctxt.closePath();
-		ctxt.stroke();
+	ctxt.beginPath();
+	ctxt.arc(x, height-y, expRadius, 0, 2*Math.PI, true);
+	ctxt.closePath();
+	ctxt.fill();
+}
+
+function renderInfo() {
+	if (devMode) {
+		elapsed = thisCycle - lastCycle;
+		frameRate = 1000/elapsed;
+		ctxt.fillStyle = "rgba(255,255,255,1.0)";
+		ctxt.font = "30px san-serif";
+		ctxt.textBaseline = "top";
+		ctxt.fillText(frameRate.toString(), 0, 0);
 	}
 }
 
@@ -282,20 +250,13 @@ function r(lim) {
 function explode(explosion) {
 	var x = Math.floor(explosion.x);
 	var y = Math.floor(explosion.y);
-	console.log(x);
-	console.log(y);
-	//var mult = (Math.PI/2)/expRadius2;
 	for (i = 0; i < expRadius2; i++) {
-		console.log("foo");
-		//var sub = expRadius2*Math.cos(i*mult);
 		var sub = Math.sqrt(expRadius2-(i*i));
 		var bottom = y-sub;
 		if (x+i < width && bottom < terrain[x+i]) {
-			console.log("plus");
 			terrain[x+i] -= Math.min(sub*2, terrain[x+i]-bottom)
 		}
 		if (x-i >= 0 && i != 0 && bottom < terrain[x-i]) {
-			console.log("minus");
 			terrain[x-i] -= Math.min(sub*2, terrain[x-i]-bottom)
 		}
 	}
@@ -312,6 +273,10 @@ function explode(explosion) {
 
 function captureKeydown(e) {
 	var keyCode = e.keyCode;
+	if (keyCode == 48) {
+		devMode = !devMode;
+		return;
+	}	       
 	keydown(keyCode, player1.keyBindings)
 	keydown(keyCode, player2.keyBindings)
 }
