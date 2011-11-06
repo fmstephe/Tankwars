@@ -1,3 +1,5 @@
+// NB: If I find the time I'll learn how to do OO in javascript
+
 function LinkedList() {
 	this.first = null;
 	this.last = null;
