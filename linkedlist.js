@@ -1,23 +1,25 @@
-// NB: If I find the time I'll learn how to do OO in javascript
-
 function LinkedList() {
 	this.first = null;
 	this.last = null;
+	this.append = append;
+	this.remove = remove;
+	this.forEach = forEach;
+	this.filter = filter;
 }
 
-function append(list, elem) {
-	if (list.first == null) {
-		list.first = elem;
-		list.last = elem;
+function append(elem) {
+	if (this.first == null) {
+		this.first = elem;
+		this.last = elem;
 	} else {
-		list.last.next = elem;
-		elem.prev = list.last;
+		this.last.next = elem;
+		elem.prev = this.last;
 		elem.next = null;
-		list.last = elem;
+		this.last = elem;
 	}
 }
 
-function remove(list, elem) {
+function remove(elem) {
 	console.log(elem);
 	if (elem.prev != null && elem.next != null) {
 		elem.prev.next = elem.next;
@@ -26,30 +28,30 @@ function remove(list, elem) {
 	}
 	if (elem.next == null) {
 		console.log("next null");
-		list.last = elem.prev;
+		this.last = elem.prev;
 	}   
 	if (elem.prev == null) {
 		console.log("prev null");
-		list.first = elem.next;
+		this.first = elem.next;
 	}
 	elem.prev = null;
 	elem.next = null;
 }
 
-function forEach(list, fun) {
-	elem = list.first;
+function forEach(fun) {
+	elem = this.first;
 	while (elem != null) {
 		fun(elem);
 		elem = elem.next;
 	}
 }
 
-function filter(list, pred) {
-	elem = list.first;
+function filter(pred) {
+	elem = this.first;
 	while (elem != null) {
 		if (pred(elem)) {
 			nextElem = elem.next;
-			remove(list, elem);
+			this.remove(elem);
 			elem = nextElem;
 		} else {
 			elem = elem.next;

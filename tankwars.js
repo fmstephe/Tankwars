@@ -11,14 +11,14 @@ var framePause = Math.floor(1000/frameRate);
 var expLife = 0.1*frameRate;
 var expRadius = 50;
 var expRadius2 = expRadius*expRadius;
-var ctxt;
 
 document.onkeydown = captureKeydown
 document.onkeyup = captureKeyup
 
 // Global Variables
+var fgCtxt;
+var bgCtxt;
 var terrain;
-var canvas;
 var height;
 var width;
 var player1;
@@ -32,6 +32,13 @@ var lastCycle;
 var thisCycle;
 var devMode;
 
+function Clear(x, y, width, height) {
+	this.x = x;
+	this.y = y;
+	this.width = width;
+	this.height = height;
+}
+
 function Player(x, name, keyBindings) {
 	this.x = x;
 	this.y = 0; // This gets set automatically by the physics
@@ -40,6 +47,7 @@ function Player(x, name, keyBindings) {
 	this.power = initPower;
 	this.keyBindings = keyBindings;
 	this.missile = null;
+	this.clr = new Clear(x-turretLength,y-turretLength,turretLength*2,turretLength*2);
 }
 
 function KeyBindings(upKey, downKey, leftKey, rightKey, firingKey) {
@@ -62,6 +70,25 @@ function Missile(player) {
 	this.y = player.y;
 	this.prevX = player.x;
 	this.prevY = player.y;
+	this.setClear = setClear;
+	this.advance = advance;
+	this.setClear();
+}
+
+function setClear() {
+	var cX = Math.min(this.x,this.prevX);
+	var cY = Math.min(this.y,this.prevY);
+	var dX = Math.abs(this.x-this.prevX);
+	var dY = Math.abs(this.y-this.prevY);
+	this.clr = new Clear(cX,cY,dX,dY);
+}
+
+function advance() {
+	this.prevX = this.x;
+	this.prevY = this.y;
+	this.x += this.pushX;
+	this.pushY -= gravity;
+	this.y += this.pushY;
 }
 
 function Explosion(missile) {
@@ -73,7 +100,7 @@ function Explosion(missile) {
 }
 
 function cleanExplosions() {
-	filter(expList, cleanExplosion);
+	expList.filter(cleanExplosion);
 }
 
 function cleanExplosion(exp) {
@@ -86,11 +113,13 @@ function init() {
 	lastCycle = new Date().getTime();
 	thisCycle = new Date().getTime();
 	expList = new LinkedList();
-	canvas = document.getElementById("canvas");
-	ctxt = canvas.getContext("2d")
-	height = canvas.height;
-	width = canvas.width;
-	terrain = generateTerrain(canvas.width, canvas.height);
+	var fgCanvas = document.getElementById("foreground");
+	var bgCanvas = document.getElementById("background");
+	fgCtxt = fgCanvas.getContext("2d")
+	bgCtxt = bgCanvas.getContext("2d")
+	height = bgCanvas.height;
+	width = bgCanvas.width;
+	terrain = generateTerrain(width, height);
 	kb1 = new KeyBindings(87,83,65,68,70);
 	player1 = new Player(r(width/3),"Player1",kb1);
 	kb2 = new KeyBindings(73,75,74,76,72);
@@ -134,15 +163,18 @@ function playerMissile(player) {
 		player.missile = new Missile(player);
 	}
 	if (player.missile != null) {
+		/*
 		player.missile.prevX = player.missile.x;
 		player.missile.prevY = player.missile.y;
 		player.missile.x += player.missile.pushX;
 		player.missile.pushY -= gravity;
 		player.missile.y += player.missile.pushY;
+		*/
+		player.missile.advance();
 		if (terrain[Math.floor(player.missile.x)] >= player.missile.y) {
 			exp = new Explosion(player.missile);
 			player.missile = null;
-			append(expList, exp);
+			expList.append(exp);
 			explode(exp);
 			return;
 		}
@@ -168,34 +200,34 @@ function render() {
 }
 
 function renderTerrain() {
-	ctxt.fillStyle = "rgba(0,0,0,1.0)";
-	ctxt.fillRect(0,0,canvas.width,canvas.height);
-	ctxt.fillStyle = "rgba(100,100,100,1.0)";
-	ctxt.beginPath();
-	ctxt.moveTo(0,height);
+	fgCtxt.fillStyle = "rgba(0,0,0,1.0)";
+	fgCtxt.fillRect(0,0,width,height);
+	fgCtxt.fillStyle = "rgba(100,100,100,1.0)";
+	fgCtxt.beginPath();
+	fgCtxt.moveTo(0,height);
 	for (x = 0; x < terrain.length; x++) {
-		ctxt.lineTo(x, height - terrain[x]);
+		fgCtxt.lineTo(x, height - terrain[x]);
 	}
-	ctxt.lineTo(width,height);
-	ctxt.closePath();
-	ctxt.fill();
+	fgCtxt.lineTo(width,height);
+	fgCtxt.closePath();
+	fgCtxt.fill();
 }
 
 function renderPlayer(player) {
-	ctxt.fillStyle = "rgba(255,30,40,1.0)";
-	ctxt.beginPath();
-	ctxt.arc(player.x, height-player.y, 10, 0, 2*Math.PI, true);
-	ctxt.closePath();
-	ctxt.fill();
+	fgCtxt.fillStyle = "rgba(255,30,40,1.0)";
+	fgCtxt.beginPath();
+	fgCtxt.arc(player.x, height-player.y, 10, 0, 2*Math.PI, true);
+	fgCtxt.closePath();
+	fgCtxt.fill();
 	turretX = player.x+turretLength*Math.sin(player.arc);
 	turretY = height-(player.y+(turretLength*Math.cos(player.arc)));
-	ctxt.strokeStyle = "rgba(255,255,255,1.0)";
-	ctxt.lineWidth = 5;
-	ctxt.beginPath();
-	ctxt.moveTo(player.x, height-player.y);
-	ctxt.lineTo(turretX,turretY);
-	ctxt.closePath();
-	ctxt.stroke();
+	fgCtxt.strokeStyle = "rgba(255,255,255,1.0)";
+	fgCtxt.lineWidth = 5;
+	fgCtxt.beginPath();
+	fgCtxt.moveTo(player.x, height-player.y);
+	fgCtxt.lineTo(turretX,turretY);
+	fgCtxt.closePath();
+	fgCtxt.stroke();
 	renderMissile(player.missile);
 }
 
@@ -205,41 +237,41 @@ function renderMissile(missile) {
 		var prevY = height - missile.prevY;
 		var x = missile.x;
 		var y = height - missile.y;
-		ctxt.strokeStyle = ctxt.createLinearGradient(Math.floor(prevX),Math.floor(prevY),Math.floor(x),Math.floor(y));
-		//ctxt.strokeStyle = "rgba(255,255,255,1)"; //ctxt.createLinearGradient(0,0,width,height);
-		ctxt.strokeStyle.addColorStop(0,"rgba(255,255,255,0.1)");
-		ctxt.strokeStyle.addColorStop(1,"rgba(255,255,255,1)");
-		ctxt.lineWidth = 5;
-		ctxt.beginPath();
-		ctxt.moveTo(prevX,prevY);
-		ctxt.lineTo(x,y);
-		ctxt.closePath();
-		ctxt.stroke();
+		fgCtxt.strokeStyle = fgCtxt.createLinearGradient(Math.floor(prevX),Math.floor(prevY),Math.floor(x),Math.floor(y));
+		//fgCtxt.strokeStyle = "rgba(255,255,255,1)"; //fgCtxt.createLinearGradient(0,0,width,height);
+		fgCtxt.strokeStyle.addColorStop(0,"rgba(255,255,255,0.1)");
+		fgCtxt.strokeStyle.addColorStop(1,"rgba(255,255,255,1)");
+		fgCtxt.lineWidth = 5;
+		fgCtxt.beginPath();
+		fgCtxt.moveTo(prevX,prevY);
+		fgCtxt.lineTo(x,y);
+		fgCtxt.closePath();
+		fgCtxt.stroke();
 	}
 }
 
 function renderExplosions() {
-	ctxt.fillStyle = "rgba(255,30,30,1.0)";
-	forEach(expList, renderExplosion);
+	fgCtxt.fillStyle = "rgba(255,30,30,1.0)";
+	expList.forEach(renderExplosion);
 }
 
 function renderExplosion(exp) {
 	var x = Math.floor(exp.x);
 	var y = Math.floor(exp.y);
-	ctxt.beginPath();
-	ctxt.arc(x, height-y, expRadius, 0, 2*Math.PI, true);
-	ctxt.closePath();
-	ctxt.fill();
+	fgCtxt.beginPath();
+	fgCtxt.arc(x, height-y, expRadius, 0, 2*Math.PI, true);
+	fgCtxt.closePath();
+	fgCtxt.fill();
 }
 
 function renderInfo() {
 	if (devMode) {
 		elapsed = thisCycle - lastCycle;
 		frameRate = 1000/elapsed;
-		ctxt.fillStyle = "rgba(255,255,255,1.0)";
-		ctxt.font = "30px san-serif";
-		ctxt.textBaseline = "top";
-		ctxt.fillText(frameRate.toString(), 0, 0);
+		fgCtxt.fillStyle = "rgba(255,255,255,1.0)";
+		fgCtxt.font = "30px san-serif";
+		fgCtxt.textBaseline = "top";
+		fgCtxt.fillText(frameRate.toString(), 0, 0);
 	}
 }
 
@@ -261,13 +293,13 @@ function explode(explosion) {
 		}
 	}
 /*
-		ctxt.beginPath();
-		ctxt.arc(x, y, 50, 0, 2*Math.PI, true);
-		ctxt.fillStyle = "rgba(255,30,40,1.0)";
-		ctxt.fill()
-		ctxt.lineWidth = 5
-		ctxt.strokeStyle = "rgba(255, 255, 255, 0.8)";
-		ctxt.stroke();
+		fgCtxt.beginPath();
+		fgCtxt.arc(x, y, 50, 0, 2*Math.PI, true);
+		fgCtxt.fillStyle = "rgba(255,30,40,1.0)";
+		fgCtxt.fill()
+		fgCtxt.lineWidth = 5
+		fgCtxt.strokeStyle = "rgba(255, 255, 255, 0.8)";
+		fgCtxt.stroke();
 */
 }
 
