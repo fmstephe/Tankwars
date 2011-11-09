@@ -55,11 +55,15 @@ function init() {
 	playerList = new LinkedList();
 	playerList.append(player1);
 	playerList.append(player2);
+	initRender();
+	setInterval(loop, framePause);
+}
+
+function initRender() {
 	renderBackground();
 	terrainCtxt.fillStyle = "rgba(100,100,100,1.0)";
 	terrain.render(terrainCtxt);
 	terrain.clearMods();
-	setInterval(loop, framePause);
 }
 
 function loop() {
@@ -87,8 +91,8 @@ function loop() {
 	fgCtxt.strokeStyle = "rgba(255,255,255,1.0)";
 	fgCtxt.lineWidth = 5;
 	playerList.forEach(function(p){p.render(fgCtxt)});
-	fgCtxt.strokeStyle = "rgba(255,255,255,0.7)";
 	missileList.forEach(function(m){m.render(fgCtxt)});
+	explosionList.forEach(function(e){e.render(fgCtxt)});
 	terrain.clearMods();
 }
 
@@ -117,12 +121,56 @@ function updatePlayer(player) {
 function updateMissile(missile) {
 	hr = terrain.heightArray;
 	missile.advance();
-	if (hr[Math.floor(missile.x)] >= missile.y) {
-		missile.remove();
-		exp = new Explosion(missile.x, missile.y, expLife, expRadius);
-		explosionList.append(exp);
-		explode(exp);
-		return;
+	var startY;
+	var yD;
+	var startX;
+	var endX;
+	var xInc;
+	var xComp;
+	if (missile.pX < missile.x) {
+		startX = Math.floor(missile.pX);
+		endX = Math.floor(missile.x);
+		startY = missile.pY;
+		yD = missile.y - missile.pY;
+		for (x = startX; x < endX; x++) {
+			yy = startY + (yD*((x-startX)/(endX-startX)));
+			if (hr[x] > yy) {
+				console.log(x,startX,endX);
+				missile.remove();
+				exp = new Explosion(x, yy, expLife, expRadius);
+				explosionList.append(exp);
+				explode(exp);
+				return;
+			}
+		}
+	} else if (missile.x < missile.Px) {
+		console.log("Start", missile.player.x);
+		startX = Math.floor(missile.pX);
+		endX = Math.floor(missile.x);
+		startY = missile.y;
+		yD = missile.pY - missile.y;
+		for (x = startX; x >= endX; x--) {
+			yy = startY + (yD*((startX-x)/(startX-endX)));
+			console.log("First",hr[x],yy);
+			if (hr[x] > yy) {
+				console.log(x,startX,endX);
+				missile.remove();
+				exp = new Explosion(x, yy, expLife, expRadius);
+				explosionList.append(exp);
+				explode(exp);
+				return;
+			}
+		}
+	} else { // missile.x == missile.pX
+		console.log("last", missile.y, hr[Math.floor(missile.x)]);
+		if (missile.y < hr[Math.floor(missile.x)]) {
+			missile.remove();
+			exp = new Explosion(missile.x, hr[Math.floor(missile.x)], expLife, expRadius);
+			explosionList.append(exp); 
+			explode(exp);
+			return;
+
+		}
 	}
 	if (missile.x > width || missile.x < 0 || missile.y < 0) {
 		missile.remove();	

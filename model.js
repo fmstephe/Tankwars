@@ -70,10 +70,10 @@ function renderPlayer(ctxt) {
 function Missile(player, gravity) {
 	this.pushX = (player.power*Math.sin(player.arc));
 	this.pushY = (player.power*Math.cos(player.arc));
-	this.x = player.x;
-	this.y = player.y;
-	this.pX = player.x;
-	this.pY = player.y;
+	this.x = player.x+(player.turretLength*Math.sin(player.arc));
+	this.y = player.y+(player.turretLength*Math.cos(player.arc));
+	this.pX = this.x;
+	this.pY = this.y;
 	this.player = player;
 	this.gravity = gravity;
 	this.removed = false;
