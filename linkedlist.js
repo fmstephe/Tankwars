@@ -1,60 +1,70 @@
 function LinkedList() {
+	this.size = 0;
 	this.first = null;
 	this.last = null;
+	this.clear = clear;
 	this.append = append;
-	this.remove = remove;
 	this.forEach = forEach;
 	this.filter = filter;
+	this.length = function() {return this.size;};
 }
 
-function append(elem) {
+function clear() {
+	this.first = null;
+	this.last = null;
+	this.size = 0;
+}
+
+function Item(val) {
+	this.val = val;
+	this.next = null;
+	this.prev = null;
+}
+
+function append(val) {
+	this.size++;
+	item = new Item(val);
 	if (this.first == null) {
-		this.first = elem;
-		this.last = elem;
+		this.first = item;
+		this.last = item;
 	} else {
-		this.last.next = elem;
-		elem.prev = this.last;
-		elem.next = null;
-		this.last = elem;
+		this.last.next = item;
+		item.prev = this.last;
+		item.next = null;
+		this.last = item;
 	}
-}
-
-function remove(elem) {
-	console.log(elem);
-	if (elem.prev != null && elem.next != null) {
-		elem.prev.next = elem.next;
-		elem.next.prev = elem.prev;
-		return;
-	}
-	if (elem.next == null) {
-		console.log("next null");
-		this.last = elem.prev;
-	}   
-	if (elem.prev == null) {
-		console.log("prev null");
-		this.first = elem.next;
-	}
-	elem.prev = null;
-	elem.next = null;
 }
 
 function forEach(fun) {
-	elem = this.first;
-	while (elem != null) {
-		fun(elem);
-		elem = elem.next;
+	item = this.first;
+	while (item != null) {
+		fun(item.val);
+		item = item.next;
 	}
 }
 
 function filter(pred) {
-	elem = this.first;
-	while (elem != null) {
-		if (pred(elem)) {
-			nextElem = elem.next;
-			this.remove(elem);
-			elem = nextElem;
+	item = this.first;
+	while (item != null) {
+		if (pred(item.val)) {
+			this.size--;
+			item = remove(this, item);
 		} else {
-			elem = elem.next;
+			item = item.next;
 		}
 	}
+}
+
+function remove(list, item) {
+	if (item.prev != null) {
+		item.prev.next = item.next;
+	} else {
+		list.first = item.next;
+	}	
+	if (item.next != null) {
+		item.next.prev = item.prev;
+	} else {
+		list.last = item.prev;
+	}
+	return item.next;
 }

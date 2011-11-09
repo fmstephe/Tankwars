@@ -1,9 +1,9 @@
 // Global Constants
-var maxPower = 170;
+var maxPower = 200;
 var minPower = 0;
-var initPower = 50;
+var initPower = 100;
 var powerInc = 0.4;
-var gravity = 4;
+var gravity = 12;
 var turretLength = 20;
 var rotationSpeed = Math.PI/50;
 var frameRate = 30;
@@ -17,131 +17,84 @@ document.onkeyup = captureKeyup
 
 // Global Variables
 var fgCtxt;
+var terrainCtxt;
 var bgCtxt;
 var terrain;
 var height;
 var width;
-var player1;
-var player2;
-// Player linked list
-var firstPlayer;
-var lastPlayer;
-// Explosion linked list
-var expList;
+// Game entity lists
+var playerList;
+var missileList;
+var explosionList;
+// Frame rate tracking 
 var lastCycle;
 var thisCycle;
+// Display toggle for nerdy info
 var devMode;
-
-function Clear(x, y, width, height) {
-	this.x = x;
-	this.y = y;
-	this.width = width;
-	this.height = height;
-}
-
-function Player(x, name, keyBindings) {
-	this.x = x;
-	this.y = 0; // This gets set automatically by the physics
-	this.name = name;
-	this.arc = 0;
-	this.power = initPower;
-	this.keyBindings = keyBindings;
-	this.missile = null;
-	this.clr = new Clear(x-turretLength,y-turretLength,turretLength*2,turretLength*2);
-}
-
-function KeyBindings(upKey, downKey, leftKey, rightKey, firingKey) {
-	this.upKey = upKey;
-	this.downKey = downKey;
-	this.leftKey = leftKey;
-	this.rightKey = rightKey;
-	this.firingKey = firingKey;
-	this.up = false;
-	this.down = false;
-	this.left = false;
-	this.right = false;
-	this.firing = false;
-}
-
-function Missile(player) {
-	this.pushX = (player.power*Math.sin(player.arc));
-	this.pushY = (player.power*Math.cos(player.arc));
-	this.x = player.x;
-	this.y = player.y;
-	this.prevX = player.x;
-	this.prevY = player.y;
-	this.setClear = setClear;
-	this.advance = advance;
-	this.setClear();
-}
-
-function setClear() {
-	var cX = Math.min(this.x,this.prevX);
-	var cY = Math.min(this.y,this.prevY);
-	var dX = Math.abs(this.x-this.prevX);
-	var dY = Math.abs(this.y-this.prevY);
-	this.clr = new Clear(cX,cY,dX,dY);
-}
-
-function advance() {
-	this.prevX = this.x;
-	this.prevY = this.y;
-	this.x += this.pushX;
-	this.pushY -= gravity;
-	this.y += this.pushY;
-}
-
-function Explosion(missile) {
-	this.x = missile.x;
-	this.y = missile.y;
-	this.life = expLife;
-	this.next = null;
-	this.prev = null;
-}
-
-function cleanExplosions() {
-	expList.filter(cleanExplosion);
-}
-
-function cleanExplosion(exp) {
-	exp.life--;
-	return exp.life <= 0;
-}
 
 function init() {
 	devMode = false;
 	lastCycle = new Date().getTime();
 	thisCycle = new Date().getTime();
-	expList = new LinkedList();
 	var fgCanvas = document.getElementById("foreground");
+	var terrainCanvas = document.getElementById("terrain");
 	var bgCanvas = document.getElementById("background");
-	fgCtxt = fgCanvas.getContext("2d")
-	bgCtxt = bgCanvas.getContext("2d")
-	height = bgCanvas.height;
-	width = bgCanvas.width;
-	terrain = generateTerrain(width, height);
-	kb1 = new KeyBindings(87,83,65,68,70);
-	player1 = new Player(r(width/3),"Player1",kb1);
-	kb2 = new KeyBindings(73,75,74,76,72);
-	player2 = new Player(width-r(width/3),"Player2",kb2);
+	fgCtxt = fgCanvas.getContext("2d");
+	terrainCtxt = terrainCanvas.getContext("2d");
+	bgCtxt = bgCanvas.getContext("2d");
+	height = fgCanvas.height;
+	width = fgCanvas.width;
+	var heightArray = generateTerrain(width, height);
+	terrain = new Terrain(heightArray, width, height);
+	var kb1 = new KeyBindings(87,83,65,68,70);
+	var player1 = new Player(r(width/3),"Player1", turretLength, initPower, kb1);
+	var kb2 = new KeyBindings(73,75,74,76,72);
+	var player2 = new Player(width-r(width/3),"Player2", turretLength, initPower, kb2);
+	explosionList = new LinkedList();
+	missileList = new LinkedList();
+	playerList = new LinkedList();
+	playerList.append(player1);
+	playerList.append(player2);
+	renderBackground();
+	terrainCtxt.fillStyle = "rgba(100,100,100,1.0)";
+	terrain.render(terrainCtxt);
+	terrain.clearMods();
 	setInterval(loop, framePause);
 }
 
 function loop() {
-	cleanExplosions();
-	managePlayer(player1);
-	managePlayer(player2);
+	// Debug info, such as frame rate is logged here
 	manageInfo();
-	render();
+	logInfo();
+	// Clear out each of the last frame's positions
+	playerList.forEach(function(p) {p.setClear(fgCtxt);});
+	missileList.forEach(function(m) {m.setClear(fgCtxt);});
+	explosionList.forEach(function(e) {e.setClear(fgCtxt);});
+	// Filter removable elements from entity lists
+	playerList.filter(function(p) {return p.shouldRemove();});
+	missileList.filter(function(m) {return m.shouldRemove();});
+	explosionList.filter(function(e) {return e.shouldRemove();});
+	// Manage game entities
+	playerList.forEach(function(p) {updatePlayer(p);});
+	missileList.forEach(function(m) {updateMissile(m);});
+	explosionList.forEach(function(e) {updateExplosion(e);});
+	// If an explosion has caused the terrain to change clear out the affected region
+	terrain.setClear(terrainCtxt);
+	// Render game entities
+	terrainCtxt.fillStyle = "rgba(100,100,100,1.0)";
+	terrain.render(terrainCtxt);
+	fgCtxt.fillStyle = "rgba(255,30,40,1.0)";
+	fgCtxt.strokeStyle = "rgba(255,255,255,1.0)";
+	fgCtxt.lineWidth = 5;
+	playerList.forEach(function(p){p.render(fgCtxt)});
+	fgCtxt.strokeStyle = "rgba(255,255,255,0.7)";
+	missileList.forEach(function(m){m.render(fgCtxt)});
+	terrain.clearMods();
 }
 
-function managePlayer(player) {
-	playerUpdate(player);
-	playerMissile(player);
-}
-
-function playerUpdate(player) {
-	player.y = terrain[player.x];
+function updatePlayer(player) {
+	hr = terrain.heightArray;
+	player.y = hr[player.x];
 	if (player.keyBindings.left) {
 		player.arc -= rotationSpeed;
 	}
@@ -156,34 +109,48 @@ function playerUpdate(player) {
 	}
 	player.power = Math.max(player.power,minPower);
 	player.power = Math.min(player.power,maxPower);
+	if (player.canFire && player.keyBindings.firing) {
+		missileList.append(player.createMissile(gravity));
+	}
 }
 
-function playerMissile(player) {
-	if (player.missile == null && player.keyBindings.firing) {
-		player.missile = new Missile(player);
+function updateMissile(missile) {
+	hr = terrain.heightArray;
+	missile.advance();
+	if (hr[Math.floor(missile.x)] >= missile.y) {
+		missile.remove();
+		exp = new Explosion(missile.x, missile.y, expLife, expRadius);
+		explosionList.append(exp);
+		explode(exp);
+		return;
 	}
-	if (player.missile != null) {
-		/*
-		player.missile.prevX = player.missile.x;
-		player.missile.prevY = player.missile.y;
-		player.missile.x += player.missile.pushX;
-		player.missile.pushY -= gravity;
-		player.missile.y += player.missile.pushY;
-		*/
-		player.missile.advance();
-		if (terrain[Math.floor(player.missile.x)] >= player.missile.y) {
-			exp = new Explosion(player.missile);
-			player.missile = null;
-			expList.append(exp);
-			explode(exp);
-			return;
-		}
-		if (player.missile.x > width || player.missile.x < 0) {
-			player.missile = null;
-		}
-	} else if (player.explosion != null) {
-		player.explosion = null;
+	if (missile.x > width || missile.x < 0 || missile.y < 0) {
+		missile.remove();	
 	}
+}
+
+function updateExplosion(explosion) {
+	if (explosion.life == expLife) {
+		explode(explosion);
+	}
+	explosion.deplete();
+}
+
+function explode(explosion) {
+	hr = terrain.heightArray;
+	var x = Math.floor(explosion.x);
+	var y = Math.floor(explosion.y);
+	for (i = 0; i < expRadius2; i++) {
+		var sub = Math.sqrt(expRadius2-(i*i));
+		var bottom = y-sub;
+		if (x+i < width && bottom < hr[x+i]) {
+			hr[x+i] -= Math.min(sub*2, hr[x+i]-bottom);
+		}
+		if (x-i >= 0 && i != 0 && bottom < hr[x-i]) {
+			hr[x-i] -= Math.min(sub*2, hr[x-i]-bottom);
+		}
+	}
+	terrain.notifyMod(x-expRadius, x+expRadius);
 }
 
 function manageInfo() {
@@ -191,116 +158,24 @@ function manageInfo() {
 	thisCycle = new Date().getTime();
 }
 
-function render() {
-	renderTerrain();
-	renderPlayer(player1);
-	renderPlayer(player2);
-	renderExplosions();
-	renderInfo();
+function renderBackground() {
+	bgCtxt.fillStyle = "rgba(0,0,0,1.0)";
+	bgCtxt.fillRect(0,0,width,height);
 }
 
-function renderTerrain() {
-	fgCtxt.fillStyle = "rgba(0,0,0,1.0)";
-	fgCtxt.fillRect(0,0,width,height);
-	fgCtxt.fillStyle = "rgba(100,100,100,1.0)";
-	fgCtxt.beginPath();
-	fgCtxt.moveTo(0,height);
-	for (x = 0; x < terrain.length; x++) {
-		fgCtxt.lineTo(x, height - terrain[x]);
-	}
-	fgCtxt.lineTo(width,height);
-	fgCtxt.closePath();
-	fgCtxt.fill();
-}
-
-function renderPlayer(player) {
-	fgCtxt.fillStyle = "rgba(255,30,40,1.0)";
-	fgCtxt.beginPath();
-	fgCtxt.arc(player.x, height-player.y, 10, 0, 2*Math.PI, true);
-	fgCtxt.closePath();
-	fgCtxt.fill();
-	turretX = player.x+turretLength*Math.sin(player.arc);
-	turretY = height-(player.y+(turretLength*Math.cos(player.arc)));
-	fgCtxt.strokeStyle = "rgba(255,255,255,1.0)";
-	fgCtxt.lineWidth = 5;
-	fgCtxt.beginPath();
-	fgCtxt.moveTo(player.x, height-player.y);
-	fgCtxt.lineTo(turretX,turretY);
-	fgCtxt.closePath();
-	fgCtxt.stroke();
-	renderMissile(player.missile);
-}
-
-function renderMissile(missile) {
-	if (missile != null) {
-		var prevX = missile.prevX;
-		var prevY = height - missile.prevY;
-		var x = missile.x;
-		var y = height - missile.y;
-		fgCtxt.strokeStyle = fgCtxt.createLinearGradient(Math.floor(prevX),Math.floor(prevY),Math.floor(x),Math.floor(y));
-		//fgCtxt.strokeStyle = "rgba(255,255,255,1)"; //fgCtxt.createLinearGradient(0,0,width,height);
-		fgCtxt.strokeStyle.addColorStop(0,"rgba(255,255,255,0.1)");
-		fgCtxt.strokeStyle.addColorStop(1,"rgba(255,255,255,1)");
-		fgCtxt.lineWidth = 5;
-		fgCtxt.beginPath();
-		fgCtxt.moveTo(prevX,prevY);
-		fgCtxt.lineTo(x,y);
-		fgCtxt.closePath();
-		fgCtxt.stroke();
-	}
-}
-
-function renderExplosions() {
-	fgCtxt.fillStyle = "rgba(255,30,30,1.0)";
-	expList.forEach(renderExplosion);
-}
-
-function renderExplosion(exp) {
-	var x = Math.floor(exp.x);
-	var y = Math.floor(exp.y);
-	fgCtxt.beginPath();
-	fgCtxt.arc(x, height-y, expRadius, 0, 2*Math.PI, true);
-	fgCtxt.closePath();
-	fgCtxt.fill();
-}
-
-function renderInfo() {
+function logInfo() {
 	if (devMode) {
 		elapsed = thisCycle - lastCycle;
 		frameRate = 1000/elapsed;
-		fgCtxt.fillStyle = "rgba(255,255,255,1.0)";
-		fgCtxt.font = "30px san-serif";
-		fgCtxt.textBaseline = "top";
-		fgCtxt.fillText(frameRate.toString(), 0, 0);
+		console.log("Frame Rate: " + frameRate);
+		console.log("Players: " + playerList.length());
+		console.log("Missiles: " + missileList.length());
+		console.log("Explosions: " + explosionList.length());
 	}
 }
 
 function r(lim) {
 	return Math.floor(Math.random()*lim)+1
-}
-
-function explode(explosion) {
-	var x = Math.floor(explosion.x);
-	var y = Math.floor(explosion.y);
-	for (i = 0; i < expRadius2; i++) {
-		var sub = Math.sqrt(expRadius2-(i*i));
-		var bottom = y-sub;
-		if (x+i < width && bottom < terrain[x+i]) {
-			terrain[x+i] -= Math.min(sub*2, terrain[x+i]-bottom)
-		}
-		if (x-i >= 0 && i != 0 && bottom < terrain[x-i]) {
-			terrain[x-i] -= Math.min(sub*2, terrain[x-i]-bottom)
-		}
-	}
-/*
-		fgCtxt.beginPath();
-		fgCtxt.arc(x, y, 50, 0, 2*Math.PI, true);
-		fgCtxt.fillStyle = "rgba(255,30,40,1.0)";
-		fgCtxt.fill()
-		fgCtxt.lineWidth = 5
-		fgCtxt.strokeStyle = "rgba(255, 255, 255, 0.8)";
-		fgCtxt.stroke();
-*/
 }
 
 function captureKeydown(e) {
@@ -309,8 +184,7 @@ function captureKeydown(e) {
 		devMode = !devMode;
 		return;
 	}	       
-	keydown(keyCode, player1.keyBindings)
-	keydown(keyCode, player2.keyBindings)
+	playerList.forEach(function(p) {keydown(keyCode,p.keyBindings);});
 }
 
 function keydown(keyCode, keyBinding) {
@@ -333,8 +207,7 @@ function keydown(keyCode, keyBinding) {
 
 function captureKeyup(e) {
 	var keyCode = e.keyCode;
-	keyup(keyCode, player1.keyBindings)
-	keyup(keyCode, player2.keyBindings)
+	playerList.forEach(function(p) {keyup(keyCode,p.keyBindings);});
 }
 
 function keyup(keyCode, keyBinding) {
