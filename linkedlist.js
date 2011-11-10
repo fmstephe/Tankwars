@@ -2,10 +2,13 @@ function LinkedList() {
 	this.size = 0;
 	this.first = null;
 	this.last = null;
+	this.getFirst = function() {return this.first.val;};
+	this.getLast = function() {return this.last.val;};
 	this.clear = clear;
 	this.append = append;
 	this.forEach = forEach;
 	this.filter = filter;
+	this.circularNext = circularNext;
 	this.length = function() {return this.size;};
 }
 
@@ -67,4 +70,19 @@ function remove(list, item) {
 		list.last = item.prev;
 	}
 	return item.next;
+}
+
+function circularNext(val) {
+	item = this.first;
+	while (item != null) {
+		if (item.val === val) {
+			if (item.next == null) {
+				return this.first.val;
+			} else {
+				return item.next.val;
+			}
+		}
+		item = item.next;
+	}
+	return null;
 }
