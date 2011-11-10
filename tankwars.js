@@ -20,8 +20,8 @@ var fgCtxt;
 var terrainCtxt;
 var bgCtxt;
 var terrain;
-var height;
-var width;
+var canvasHeight;
+var canvasWidth;
 // Game entity lists
 var playerList;
 var missileList;
@@ -42,14 +42,14 @@ function init() {
 	fgCtxt = fgCanvas.getContext("2d");
 	terrainCtxt = terrainCanvas.getContext("2d");
 	bgCtxt = bgCanvas.getContext("2d");
-	height = fgCanvas.height;
-	width = fgCanvas.width;
-	var heightArray = generateTerrain(width, height);
-	terrain = new Terrain(heightArray, width, height);
+	canvasHeight = fgCanvas.height;
+	canvasWidth = fgCanvas.width;
+	var heightArray = generateTerrain(canvasWidth, canvasHeight);
+	terrain = new Terrain(heightArray, canvasWidth, canvasHeight);
 	var kb1 = new KeyBindings(87,83,65,68,70);
-	var player1 = new Player(r(width/3),"Player1", turretLength, initPower, kb1);
+	var player1 = new Player(r(canvasWidth/3),"Player1", turretLength, initPower, kb1);
 	var kb2 = new KeyBindings(73,75,74,76,72);
-	var player2 = new Player(width-r(width/3),"Player2", turretLength, initPower, kb2);
+	var player2 = new Player(canvasWidth-r(canvasWidth/3),"Player2", turretLength, initPower, kb2);
 	explosionList = new LinkedList();
 	missileList = new LinkedList();
 	playerList = new LinkedList();
@@ -60,9 +60,12 @@ function init() {
 }
 
 function initRender() {
-	renderBackground();
+	fgCtxt.fillStyle = "rgba(255,30,40,1.0)";
+	fgCtxt.lineWidth = 5;
 	terrainCtxt.fillStyle = "rgba(100,100,100,1.0)";
-	terrain.render(terrainCtxt);
+	bgCtxt.fillStyle = "rgba(0,0,0,1.0)";
+	bgCtxt.fillRect(0,0,canvasWidth,canvasHeight);
+	terrain.render(terrainCtxt, canvasHeight);
 	terrain.clearMods();
 }
 
@@ -71,9 +74,9 @@ function loop() {
 	manageInfo();
 	logInfo();
 	// Clear out each of the last frame's positions
-	playerList.forEach(function(p) {p.setClear(fgCtxt);});
-	missileList.forEach(function(m) {m.setClear(fgCtxt);});
-	explosionList.forEach(function(e) {e.setClear(fgCtxt);});
+	playerList.forEach(function(p) {p.setClear(fgCtxt, canvasHeight);});
+	missileList.forEach(function(m) {m.setClear(fgCtxt, canvasHeight);});
+	explosionList.forEach(function(e) {e.setClear(fgCtxt, canvasHeight);});
 	// Filter removable elements from entity lists
 	playerList.filter(function(p) {return p.shouldRemove();});
 	missileList.filter(function(m) {return m.shouldRemove();});
@@ -83,16 +86,13 @@ function loop() {
 	missileList.forEach(function(m) {updateMissile(m);});
 	explosionList.forEach(function(e) {updateExplosion(e);});
 	// If an explosion has caused the terrain to change clear out the affected region
-	terrain.setClear(terrainCtxt);
+	terrain.setClear(terrainCtxt, canvasHeight);
 	// Render game entities
-	terrainCtxt.fillStyle = "rgba(100,100,100,1.0)";
-	terrain.render(terrainCtxt);
-	fgCtxt.fillStyle = "rgba(255,30,40,1.0)";
+	terrain.render(terrainCtxt, canvasHeight);
 	fgCtxt.strokeStyle = "rgba(255,255,255,1.0)";
-	fgCtxt.lineWidth = 5;
-	playerList.forEach(function(p){p.render(fgCtxt)});
-	missileList.forEach(function(m){m.render(fgCtxt)});
-	explosionList.forEach(function(e){e.render(fgCtxt)});
+	playerList.forEach(function(p){p.render(fgCtxt, canvasHeight)});
+	missileList.forEach(function(m){m.render(fgCtxt, canvasHeight)});
+	explosionList.forEach(function(e){e.render(fgCtxt, canvasHeight)});
 	terrain.clearMods();
 }
 
@@ -121,60 +121,47 @@ function updatePlayer(player) {
 function updateMissile(missile) {
 	hr = terrain.heightArray;
 	missile.advance();
+	var startX = Math.floor(missile.pX);
+	var endX = Math.floor(missile.x);
 	var startY;
 	var yD;
-	var startX;
-	var endX;
-	var xInc;
-	var xComp;
-	if (missile.pX < missile.x) {
-		startX = Math.floor(missile.pX);
-		endX = Math.floor(missile.x);
+	if (startX < endX) {
 		startY = missile.pY;
 		yD = missile.y - missile.pY;
-		for (x = startX; x < endX; x++) {
+		for (x = startX; x <= endX; x++) {
 			yy = startY + (yD*((x-startX)/(endX-startX)));
 			if (hr[x] > yy) {
-				console.log(x,startX,endX);
-				missile.remove();
-				exp = new Explosion(x, yy, expLife, expRadius);
-				explosionList.append(exp);
-				explode(exp);
+				explodeMissile(missile,x,yy);
 				return;
 			}
 		}
-	} else if (missile.x < missile.Px) {
-		console.log("Start", missile.player.x);
-		startX = Math.floor(missile.pX);
-		endX = Math.floor(missile.x);
+	} else if (endX < startX) {
 		startY = missile.y;
 		yD = missile.pY - missile.y;
 		for (x = startX; x >= endX; x--) {
 			yy = startY + (yD*((startX-x)/(startX-endX)));
-			console.log("First",hr[x],yy);
 			if (hr[x] > yy) {
-				console.log(x,startX,endX);
-				missile.remove();
-				exp = new Explosion(x, yy, expLife, expRadius);
-				explosionList.append(exp);
-				explode(exp);
+				explodeMissile(missile,x,yy);
 				return;
 			}
 		}
 	} else { // missile.x == missile.pX
-		console.log("last", missile.y, hr[Math.floor(missile.x)]);
-		if (missile.y < hr[Math.floor(missile.x)]) {
-			missile.remove();
-			exp = new Explosion(missile.x, hr[Math.floor(missile.x)], expLife, expRadius);
-			explosionList.append(exp); 
-			explode(exp);
+		if (missile.y < hr[startX]) {
+			explodeMissile(missile,startX,hr[startX]);
 			return;
 
 		}
 	}
-	if (missile.x > width || missile.x < 0 || missile.y < 0) {
+	if (missile.x > canvasWidth || missile.x < 0 || missile.y < 0) {
 		missile.remove();	
 	}
+}
+
+function explodeMissile(missile, x, y) {
+	missile.remove();
+	exp = new Explosion(x, y, expLife, expRadius);
+	explosionList.append(exp); 
+	return;
 }
 
 function updateExplosion(explosion) {
@@ -191,7 +178,7 @@ function explode(explosion) {
 	for (i = 0; i < expRadius2; i++) {
 		var sub = Math.sqrt(expRadius2-(i*i));
 		var bottom = y-sub;
-		if (x+i < width && bottom < hr[x+i]) {
+		if (x+i < canvasWidth && bottom < hr[x+i]) {
 			hr[x+i] -= Math.min(sub*2, hr[x+i]-bottom);
 		}
 		if (x-i >= 0 && i != 0 && bottom < hr[x-i]) {
@@ -204,11 +191,6 @@ function explode(explosion) {
 function manageInfo() {
 	lastCycle = thisCycle;
 	thisCycle = new Date().getTime();
-}
-
-function renderBackground() {
-	bgCtxt.fillStyle = "rgba(0,0,0,1.0)";
-	bgCtxt.fillRect(0,0,width,height);
 }
 
 function logInfo() {

@@ -1,9 +1,9 @@
 // Interface for all model elements
 //
-// Used to clear out previous frame's drawing
-// setClear(ctxt)
-// Asks this entity to draw itself to the context provided
-// render(ctxt)
+// Used to clear out previous frame's drawing, hgt is the height of the context we are drawing to
+// setClear(ctxt, hgt)
+// Asks this entity to draw itself to the context provided, hgt is the height of the context we are drawing to
+// render(ctxt, hgt)
 //
 //
 function KeyBindings(upKey, downKey, leftKey, rightKey, firingKey) {
@@ -39,9 +39,9 @@ function createMissilePlayer(gravity) {
 	return new Missile(this, gravity);
 }
 
-function setClearPlayer(ctxt) {
+function setClearPlayer(ctxt, hgt) {
 	var x = this.x-this.turretLength;
-	var y = height - (this.y + this.turretLength);
+	var y = hgt - (this.y + this.turretLength);
 	var size = this.turretLength*2;
 	ctxt.clearRect(x, y, size, size);
 }
@@ -53,15 +53,15 @@ function shouldRemovePlayer() {
 // ctxt.fillStyle = "rgba(255,30,40,1.0)";
 // ctxt.strokeStyle = "rgba(255,255,255,1.0)";
 // ctxt.lineWidth = 5;
-function renderPlayer(ctxt) {
+function renderPlayer(ctxt, hgt) {
 	ctxt.beginPath();
-	ctxt.arc(this.x, height-this.y, 10, 0, 2*Math.PI, true);
+	ctxt.arc(this.x, hgt-this.y, 10, 0, 2*Math.PI, true);
 	ctxt.closePath();
 	ctxt.fill();
 	turretX = this.x+this.turretLength*Math.sin(this.arc);
-	turretY = height-(this.y+(this.turretLength*Math.cos(this.arc)));
+	turretY = hgt-(this.y+(this.turretLength*Math.cos(this.arc)));
 	ctxt.beginPath();
-	ctxt.moveTo(this.x, height-this.y);
+	ctxt.moveTo(this.x, hgt-this.y);
 	ctxt.lineTo(turretX,turretY);
 	ctxt.closePath();
 	ctxt.stroke();
@@ -84,9 +84,9 @@ function Missile(player, gravity) {
 	this.advance = advance;
 }
 
-function setClearMissile(ctxt) {
+function setClearMissile(ctxt, hgt) {
 	var x = Math.min(this.pX,this.x)-10;
-	var y = height - (Math.max(this.pY,this.y)+10);
+	var y = hgt - (Math.max(this.pY,this.y)+10);
 	var width = Math.abs(this.pX-this.x)+20;
 	var h = Math.abs(this.pY-this.y)+20;
 	ctxt.clearRect(x,y,width,h);
@@ -102,19 +102,21 @@ function shouldRemoveMissile() {
 }
 
 // ctxt.lineWidth = 5;
-function renderMissile(ctxt) {
-	var pX = this.pX;
-	var pY = height - this.pY;
-	var x = this.x;
-	var y = height - this.y;
-	ctxt.strokeStyle = ctxt.createLinearGradient(Math.floor(pX),Math.floor(pY),Math.floor(x),Math.floor(y));
-	ctxt.strokeStyle.addColorStop(0,"rgba(255,255,255,0.1)");
-	ctxt.strokeStyle.addColorStop(1,"rgba(255,255,255,1)");
-	ctxt.beginPath();
-	ctxt.moveTo(pX,pY);
-	ctxt.lineTo(x,y);
-	ctxt.closePath();
-	ctxt.stroke();
+function renderMissile(ctxt, hgt) {
+	if (!this.removed) {
+		var pX = this.pX;
+		var pY = hgt - this.pY;
+		var x = this.x;
+		var y = hgt - this.y;
+		ctxt.strokeStyle = ctxt.createLinearGradient(Math.floor(pX),Math.floor(pY),Math.floor(x),Math.floor(y));
+		ctxt.strokeStyle.addColorStop(0,"rgba(255,255,255,0.1)");
+		ctxt.strokeStyle.addColorStop(1,"rgba(255,255,255,1)");
+		ctxt.beginPath();
+		ctxt.moveTo(pX,pY);
+		ctxt.lineTo(x,y);
+		ctxt.closePath();
+		ctxt.stroke();
+	}
 }
 
 function advance() {
@@ -140,9 +142,9 @@ function Explosion(x, y, life, radius) {
 	this.render = renderExplosion;
 }
 
-function setClearExplosion(ctxt) {
+function setClearExplosion(ctxt, hgt) {
 	var x = this.x - this.radius-2;
-	var y = height - (this.y + this.radius + 2);
+	var y = hgt - (this.y + this.radius + 2);
 	var w = this.radius*2 + 4;
 	var h = this.radius*2 + 4;
 	ctxt.clearRect(x,y,w,h);
@@ -157,11 +159,11 @@ function shouldRemoveExplosion() {
 }
 
 // fgCtxt.fillStyle = "rgba(255,30,30,1.0)";
-function renderExplosion(ctxt) {
+function renderExplosion(ctxt, hgt) {
 	var x = Math.floor(this.x);
 	var y = Math.floor(this.y);
 	ctxt.beginPath();
-	ctxt.arc(x, height-y, this.radius, 0, 2*Math.PI, true);
+	ctxt.arc(x, hgt-y, this.radius, 0, 2*Math.PI, true);
 	ctxt.closePath();
 	ctxt.fill();
 }
@@ -186,31 +188,30 @@ function clearModsTerrain() {
 	this.regionList.clear();
 }
 
-function setClearTerrain(ctxt) {
-	this.regionList.forEach(function(r) {doClearTerrain(ctxt,r);});
+function setClearTerrain(ctxt, hgt) {
+	this.regionList.forEach(function(r) {doClearTerrain(ctxt,r,hgt);});
 }
 
-function doClearTerrain(ctxt, region) {
+function doClearTerrain(ctxt, region, hgt) {
 	var x = region.from;
 	var y = 0;
 	var w = region.to - region.from;
-	var h = height;
+	var h = hgt;
 	ctxt.clearRect(x,y,w,h);
 }
 
-function renderTerrain(ctxt) {
-	this.regionList.forEach(function(r) {doRenderTerrain(ctxt,r);});
+function renderTerrain(ctxt, hgt) {
+	this.regionList.forEach(function(r) {doRenderTerrain(ctxt,r,hgt);});
 }
 
 // bgCtxt.fillStyle = "rgba(100,100,100,1.0)";
-function doRenderTerrain(ctxt, region) {
-	console.log("Render Terrain");
+function doRenderTerrain(ctxt, region, hgt) {
 	ctxt.beginPath();
-	ctxt.moveTo(region.from,height);
+	ctxt.moveTo(region.from,hgt);
 	for (x = region.from; x <= region.to; x++) {
-		ctxt.lineTo(x, height - terrain.heightArray[x]);
+		ctxt.lineTo(x, hgt - terrain.heightArray[x]);
 	}
-	ctxt.lineTo(region.to,height);
+	ctxt.lineTo(region.to,hgt);
 	ctxt.closePath();
 	ctxt.fill();
 }
