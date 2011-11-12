@@ -101,11 +101,12 @@ function loop() {
 		terrain.clearMods();
 		//Check to see if any players are dead
 		playerList.filter(function(p) {return p.health <= 0});
-		console.log(playerList.length());
 		if (playerList.length() < 2) {
 			gameOver = true;
 		}
 	} else {
+		missileList.clear();
+		explosionList.clear();
 		bgCtxt.font = "100pt Calibri-bold";
 		var name = playerList.getFirst().name;
 		fgCtxt.clearRect(0,0,canvasWidth,canvasHeight);
@@ -234,7 +235,7 @@ function logInfo() {
 	if (devMode) {
 		elapsed = thisCycle - lastCycle;
 		frameRate = 1000/elapsed;
-		console.log("Frame Rate: " + frameRate, "Players: " + playerList.length(), "Missiles: " + missileList.length(), "Explosions: " + explosionList.length());
+		console.log("Frame Rate: " + Math.floor(frameRate), "\tPlayers: " + playerList.length(), "\tMissiles: " + missileList.length(), "\tExplosions: " + explosionList.length());
 	}
 }
 
