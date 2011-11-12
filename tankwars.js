@@ -234,10 +234,7 @@ function logInfo() {
 	if (devMode) {
 		elapsed = thisCycle - lastCycle;
 		frameRate = 1000/elapsed;
-		console.log("Frame Rate: " + frameRate);
-		console.log("Players: " + playerList.length());
-		console.log("Missiles: " + missileList.length());
-		console.log("Explosions: " + explosionList.length());
+		console.log("Frame Rate: " + frameRate, "Players: " + playerList.length(), "Missiles: " + missileList.length(), "Explosions: " + explosionList.length());
 	}
 }
 
