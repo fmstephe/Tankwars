@@ -10,7 +10,6 @@ var frameRate = 30;
 var framePause = Math.floor(1000/frameRate);
 var expLife = 0.1*frameRate;
 var expRadius = 50;
-var expRadius2 = expRadius*expRadius;
 
 document.onkeydown = captureKeydown
 document.onkeyup = captureKeyup
@@ -203,8 +202,8 @@ function explode(explosion) {
 	hr = terrain.heightArray;
 	var x = Math.floor(explosion.x);
 	var y = Math.floor(explosion.y);
-	for (i = 0; i < expRadius2; i++) {
-		var sub = Math.sqrt(expRadius2-(i*i));
+	for (i = 0; i < expRadius; i++) {
+		var sub = Math.sqrt((expRadius*expRadius)-(i*i));
 		var bottom = y-sub;
 		if (x+i < canvasWidth && bottom < hr[x+i]) {
 			hr[x+i] -= Math.min(sub*2, hr[x+i]-bottom);
